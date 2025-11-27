@@ -8,6 +8,7 @@ dependencies = []
 
 [dependency-groups]
 dev = [
+    "pytest>=9.0.1",
     "ruff>=0.14.6",
 ]
 
@@ -33,3 +34,6 @@ ignore = [
 
 [tool.ruff.lint.mccabe]
 max-complexity = 10
+
+[tool.pytest.ini_options]
+pythonpath = ["src/", "tests/"]

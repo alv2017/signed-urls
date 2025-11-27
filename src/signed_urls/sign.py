@@ -1,4 +1,5 @@
 import time
+from collections import OrderedDict
 from urllib.parse import parse_qs, urlencode, urlparse, urlunparse
 
 from signed_urls.utils import (
@@ -6,6 +7,7 @@ from signed_urls.utils import (
     build_canonical_query_string,
     build_canonical_string,
     create_signature,
+    supported_algorithms,
 )
 
 
@@ -36,6 +38,35 @@ def sign_url(
     Returns:
         str: The signed URL containing `exp` and `sig` query parameters.
     """
+    if type(method) is not str:
+        raise TypeError("HTTP method must be a string")
+    if type(url) is not str:
+        raise TypeError("URL must be a string")
+    if type(secret_key) is not str:
+        raise TypeError("Secret key must be a string")
+    if type(ttl) is not int:
+        raise TypeError("TTL must be an integer.")
+    if algorithm not in supported_algorithms:
+        raise ValueError(f"Unsupported algorithm: {algorithm}")
+
+    if extra_qp is not None:
+        if not isinstance(extra_qp, dict):
+            raise TypeError("extra_qp must be a dictionary or None.")
+        try:
+            urlencode(extra_qp, errors="strict")
+        except UnicodeEncodeError as e:
+            raise ValueError(
+                "The extra query parameters contain non-encodable values."
+            ) from None
+        except TypeError as e:
+            raise TypeError(
+                f"The extra query parameters contain non-string values: {repr(e)}"
+            ) from None
+
+        if "exp" in extra_qp or "sig" in extra_qp:
+            raise ValueError("Extra query parameters cannot contain reserved keys 'exp' or 'sig'.")
+
+
     expire_ts = int(time.time()) + ttl
     parsed = urlparse(url)
 
@@ -43,8 +74,10 @@ def sign_url(
     query_params = parse_qs(query)
     query_params["exp"] = [str(expire_ts)]
     query_params.update(extra_qp or {})
-    canonical_query_string = build_canonical_query_string(query_params)
-    query_params_sorted = parse_qs(canonical_query_string)
+
+    sorted_query_params: dict = OrderedDict(sorted(query_params.items()))
+
+    canonical_query_string = build_canonical_query_string(sorted_query_params)
 
     scheme = parsed.scheme
     netloc = parsed.netloc
@@ -58,7 +91,7 @@ def sign_url(
 
     signature: bytes = create_signature(message_to_sign, secret_key, algorithm)
     signature_b64 = base64url_encode(signature)
-    query_params_sorted["sig"] = [signature_b64]
+    sorted_query_params["sig"] = [signature_b64]
 
     return urlunparse(
         (
@@ -66,7 +99,7 @@ def sign_url(
             netloc,
             path,
             params,
-            urlencode(query_params_sorted, doseq=True),
+            urlencode(sorted_query_params, doseq=True),
             fragment,
         )
     )

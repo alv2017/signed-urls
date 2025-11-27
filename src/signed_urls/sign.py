@@ -1,0 +1,72 @@
+import time
+from urllib.parse import parse_qs, urlencode, urlparse, urlunparse
+
+from signed_urls.utils import (
+    base64url_encode,
+    build_canonical_query_string,
+    build_canonical_string,
+    create_signature,
+)
+
+
+def sign_url(
+    method: str,
+    url: str,
+    secret_key: str,
+    ttl: int,
+    extra_qp: dict | None = None,
+    algorithm: str = "SHA256",
+) -> str:
+    """
+    Sign a URL by adding an expiration timestamp and a signature.
+
+    Builds a canonical string from the request components, computes a
+    HMAC-based signature using `secret_key` and `algorithm`, and returns the
+    URL with `exp` and `sig` query parameters appended.
+
+    Args:
+        method (str): HTTP method (e.g. 'GET', 'POST').
+        url (str): The URL to sign.
+        secret_key (str): Secret key used to create the signature.
+        ttl (int): Time-to-live in seconds; expiration is current time + ttl.
+        extra_qp (dict | None): Additional query parameters to include in the
+            signature and final URL.
+        algorithm (str): Hash algorithm used for the signature (default: \'SHA256\').
+
+    Returns:
+        str: The signed URL containing `exp` and `sig` query parameters.
+    """
+    expire_ts = int(time.time()) + ttl
+    parsed = urlparse(url)
+
+    query = parsed.query
+    query_params = parse_qs(query)
+    query_params["exp"] = [str(expire_ts)]
+    query_params.update(extra_qp or {})
+    canonical_query_string = build_canonical_query_string(query_params)
+    query_params_sorted = parse_qs(canonical_query_string)
+
+    scheme = parsed.scheme
+    netloc = parsed.netloc
+    path = parsed.path
+    params = parsed.params
+    fragment = parsed.fragment
+
+    message_to_sign = build_canonical_string(
+        method, scheme, netloc, path, params, canonical_query_string, fragment
+    )
+
+    signature: bytes = create_signature(message_to_sign, secret_key, algorithm)
+    signature_b64 = base64url_encode(signature)
+    query_params_sorted["sig"] = [signature_b64]
+
+    return urlunparse(
+        (
+            scheme,
+            netloc,
+            path,
+            params,
+            urlencode(query_params_sorted, doseq=True),
+            fragment,
+        )
+    )

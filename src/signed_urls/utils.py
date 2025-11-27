@@ -1,7 +1,17 @@
 import base64
+import binascii
 import hashlib
 import hmac
 from urllib.parse import urlencode
+
+from collections.abc import Mapping, Sequence
+from typing import TypeAlias
+
+Scalar: TypeAlias = str | int | float
+QueryValue: TypeAlias = Scalar | Sequence[Scalar]
+QueryDict: TypeAlias = dict[str, QueryValue]
+QueryList: TypeAlias = list[tuple[str, QueryValue]]
+
 
 supported_algorithms: list[str] = ["SHA256", "SHA512", "BLAKE2B", "BLAKE2S"]
 
@@ -12,7 +22,12 @@ def base64url_encode(b: bytes) -> str:
 
 def base64url_decode(s: str) -> bytes:
     padding = "=" * (-len(s) % 4)
-    return base64.urlsafe_b64decode(s + padding)
+    try:
+        b64_decoded_bytes = base64.urlsafe_b64decode(s + padding)
+    except (binascii.Error, ValueError) as e:
+        raise ValueError(f"Invalid base64url-encoded string: {str(e)}") from None
+    else:
+        return b64_decoded_bytes
 
 
 def create_signature(message: str, secret_key: str, algorithm: str = "SHA256") -> bytes:
@@ -33,15 +48,17 @@ def create_signature(message: str, secret_key: str, algorithm: str = "SHA256") -
     """
     if algorithm not in supported_algorithms:
         raise ValueError(f"Unsupported algorithm: {algorithm}")
+    msg: bytes = message.encode()
+    digestmod = getattr(hashlib, algorithm.lower())
     hmo = hmac.new(
         secret_key.encode(),
-        msg=message.encode(),
-        digestmod=getattr(hashlib, algorithm.lower()),
+        msg=msg,
+        digestmod=digestmod
     )
     return hmo.digest()
 
 
-def build_canonical_query_string(params: dict) -> str:
+def build_canonical_query_string(params: QueryDict | QueryList) -> str:
     """
     Build a canonical, URL-encoded query string from the given parameters.
 
@@ -55,8 +72,10 @@ def build_canonical_query_string(params: dict) -> str:
     Returns:
         URL-encoded query string with keys sorted.
     """
-    tmp: dict = {k: params[k] for k in sorted(params.keys())}
-    return urlencode(tmp, doseq=True)
+    if isinstance(params, dict):
+        params = params.items()
+
+    return urlencode(sorted(params), doseq=True)
 
 
 def build_canonical_string(

@@ -2,10 +2,9 @@ import base64
 import binascii
 import hashlib
 import hmac
-from urllib.parse import urlencode
-
-from collections.abc import Mapping, Sequence
+from collections.abc import Sequence
 from typing import TypeAlias
+from urllib.parse import urlencode
 
 Scalar: TypeAlias = str | int | float
 QueryValue: TypeAlias = Scalar | Sequence[Scalar]
@@ -50,11 +49,7 @@ def create_signature(message: str, secret_key: str, algorithm: str = "SHA256") -
         raise ValueError(f"Unsupported algorithm: {algorithm}")
     msg: bytes = message.encode()
     digestmod = getattr(hashlib, algorithm.lower())
-    hmo = hmac.new(
-        secret_key.encode(),
-        msg=msg,
-        digestmod=digestmod
-    )
+    hmo = hmac.new(secret_key.encode(), msg=msg, digestmod=digestmod)
     return hmo.digest()
 
 

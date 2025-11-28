@@ -7,9 +7,9 @@ from signed_urls.utils import (
     base64url_decode,
     build_canonical_string,
     create_signature,
-    supported_algorithms
+    supported_algorithms,
 )
-
+from signed_urls.validators import validate_type
 
 BASE64URL_REGEX = re.compile(r"^[A-Za-z0-9_-]+$")
 
@@ -36,13 +36,16 @@ def verify_signed_url(
         bool: True if the signature in the URL matches the expected signature computed
         from the canonicalized request and provided secret_key; False otherwise.
     """
-    # Input validation
-    if not isinstance(method, str):
-        raise TypeError("HTTP method must be a string.")
-    if not isinstance(signed_url, str):
-        raise TypeError("Signed URL must be a string.")
-    if not isinstance(secret_key, str):
-        raise TypeError("Secret key must be a string.")
+    # Validate http method
+    validate_type(value=method, expected_type=str, field_name="HTTP method")
+    # Validate signed_url
+    validate_type(value=signed_url, expected_type=str, field_name="Signed URL")
+    if len(signed_url.strip()) == 0:
+        raise ValueError("Signed URL cannot be empty")
+    # Validate secret key
+    validate_type(value=secret_key, expected_type=str, field_name="Secret key")
+    # Validate algorithm
+    validate_type(value=algorithm, expected_type=str, field_name="Algorithm")
     if algorithm not in supported_algorithms:
         raise ValueError(f"Unsupported algorithm: {algorithm}")
 

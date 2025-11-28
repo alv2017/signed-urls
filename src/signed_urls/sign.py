@@ -2,14 +2,15 @@ import time
 from urllib.parse import parse_qs, urlencode, urlparse, urlunparse
 
 from signed_urls.utils import (
+    QueryDict,
+    QueryList,
     base64url_encode,
     build_canonical_query_string,
     build_canonical_string,
     create_signature,
     supported_algorithms,
-    QueryDict,
-    QueryList
 )
+from signed_urls.validators import validate_type
 
 
 def sign_url(
@@ -44,25 +45,34 @@ def sign_url(
     Returns:
         str: The signed URL containing `exp` and `sig` query parameters.
     """
-    if not isinstance(method, str):
-        raise TypeError("HTTP method must be a string")
-    if not isinstance(url, str):
-        raise TypeError("URL must be a string")
+    # Validate http method
+    validate_type(value=method, expected_type=str, field_name="HTTP method")
+
+    # Validate url
+    validate_type(value=url, expected_type=str, field_name="URL")
     if len(url.strip()) == 0:
         raise ValueError("URL cannot be empty")
-    if not isinstance(secret_key, str):
-        raise TypeError("Secret key must be a string")
-    if not isinstance(ttl, int):
-        raise TypeError("TTL must be an integer.")
+
+    # Validate secret key
+    validate_type(value=secret_key, expected_type=str, field_name="Secret key")
+
+    # Validate ttl
+    validate_type(value=ttl, expected_type=int, field_name="TTL")
+
+    # Validate algorithm
+    validate_type(value=algorithm, expected_type=str, field_name="Algorithm")
     if algorithm not in supported_algorithms:
         raise ValueError(f"Unsupported algorithm: {algorithm}")
 
+    # Validate extra_qp: extra query parameters
     if extra_qp is not None:
-        if not isinstance(extra_qp, dict):
-            raise TypeError("extra_qp must be a dictionary or None.")
+        validate_type(
+            value=extra_qp, expected_type=dict, field_name="Extra query parameters"
+        )
+
         try:
             urlencode(extra_qp, errors="strict")
-        except UnicodeEncodeError as e:
+        except UnicodeEncodeError:
             raise ValueError(
                 "The extra query parameters contain non-encodable values."
             ) from None
@@ -72,8 +82,9 @@ def sign_url(
             ) from None
 
         if "exp" in extra_qp or "sig" in extra_qp:
-            raise ValueError("Extra query parameters cannot contain reserved keys 'exp' or 'sig'.")
-
+            raise ValueError(
+                "Extra query parameters cannot contain reserved keys 'exp' or 'sig'."
+            )
 
     expire_ts = int(time.time()) + ttl
     parsed = urlparse(url)

@@ -1,8 +1,17 @@
 import hmac
+import re
 import time
 from urllib.parse import parse_qs, urlencode, urlparse
 
-from utils import base64url_decode, build_canonical_string, create_signature
+from signed_urls.utils import (
+    base64url_decode,
+    build_canonical_string,
+    create_signature,
+    supported_algorithms
+)
+
+
+BASE64URL_REGEX = re.compile(r"^[A-Za-z0-9_-]+$")
 
 
 def verify_signed_url(
@@ -10,6 +19,11 @@ def verify_signed_url(
 ) -> bool:
     """
     Verify a signed URL.
+
+    Note:
+    This function does NOT perform semantic URL validation.
+    Any non-empty string that can be parsed by urllib.parse.urlparse
+    will be verified. URL correctness is the caller's responsibility.
 
     Args:
         method (str): HTTP method used to sign the request (e.g., 'GET').
@@ -22,16 +36,39 @@ def verify_signed_url(
         bool: True if the signature in the URL matches the expected signature computed
         from the canonicalized request and provided secret_key; False otherwise.
     """
+    # Input validation
+    if not isinstance(method, str):
+        raise TypeError("HTTP method must be a string.")
+    if not isinstance(signed_url, str):
+        raise TypeError("Signed URL must be a string.")
+    if not isinstance(secret_key, str):
+        raise TypeError("Secret key must be a string.")
+    if algorithm not in supported_algorithms:
+        raise ValueError(f"Unsupported algorithm: {algorithm}")
+
     # Parse the signed URL
     parsed = urlparse(signed_url)
     query_params = parse_qs(parsed.query)
 
     # Extract the signature from the query parameters
     signature_b64 = query_params.pop("sig", [None])[0]
+
+    # Signature must be present
     if not signature_b64:
         return False
-    else:
+
+    # Validate signature length (base64url-encoded HMAC signatures)
+    if len(signature_b64) < 43 or len(signature_b64) > 86:
+        return False
+
+    # Validate the signature format
+    if not BASE64URL_REGEX.match(signature_b64):
+        return False
+
+    try:
         signature: bytes = base64url_decode(signature_b64)
+    except ValueError:
+        return False
 
     # Extract expiry timestamp
     exp = query_params.get("exp", [None])[0]
@@ -52,10 +89,10 @@ def verify_signed_url(
         parsed.fragment,
     )
 
-    # Generate a new signature using the secret key
+    # Generate an expected signature using the secret key
     expected_signature = create_signature(
         message_to_sign, secret_key, algorithm=algorithm
     )
 
-    # Compare the provided signature with the expected signature
+    # Compare the signature from the url with the expected signature
     return hmac.compare_digest(signature, expected_signature)

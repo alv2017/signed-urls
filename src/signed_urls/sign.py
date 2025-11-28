@@ -1,5 +1,4 @@
 import time
-from collections import OrderedDict
 from urllib.parse import parse_qs, urlencode, urlparse, urlunparse
 
 from signed_urls.utils import (
@@ -8,6 +7,8 @@ from signed_urls.utils import (
     build_canonical_string,
     create_signature,
     supported_algorithms,
+    QueryDict,
+    QueryList
 )
 
 
@@ -16,8 +17,8 @@ def sign_url(
     url: str,
     secret_key: str,
     ttl: int,
-    extra_qp: dict | None = None,
     algorithm: str = "SHA256",
+    extra_qp: QueryDict | None = None,
 ) -> str:
     """
     Sign a URL by adding an expiration timestamp and a signature.
@@ -25,6 +26,11 @@ def sign_url(
     Builds a canonical string from the request components, computes a
     HMAC-based signature using `secret_key` and `algorithm`, and returns the
     URL with `exp` and `sig` query parameters appended.
+
+    Note:
+    This function does NOT perform semantic URL validation.
+    Any non-empty string that can be parsed by urllib.parse.urlparse
+    will be signed. URL correctness is the caller's responsibility.
 
     Args:
         method (str): HTTP method (e.g. 'GET', 'POST').
@@ -38,13 +44,15 @@ def sign_url(
     Returns:
         str: The signed URL containing `exp` and `sig` query parameters.
     """
-    if type(method) is not str:
+    if not isinstance(method, str):
         raise TypeError("HTTP method must be a string")
-    if type(url) is not str:
+    if not isinstance(url, str):
         raise TypeError("URL must be a string")
-    if type(secret_key) is not str:
+    if len(url.strip()) == 0:
+        raise ValueError("URL cannot be empty")
+    if not isinstance(secret_key, str):
         raise TypeError("Secret key must be a string")
-    if type(ttl) is not int:
+    if not isinstance(ttl, int):
         raise TypeError("TTL must be an integer.")
     if algorithm not in supported_algorithms:
         raise ValueError(f"Unsupported algorithm: {algorithm}")
@@ -75,7 +83,7 @@ def sign_url(
     query_params["exp"] = [str(expire_ts)]
     query_params.update(extra_qp or {})
 
-    sorted_query_params: dict = OrderedDict(sorted(query_params.items()))
+    sorted_query_params: QueryList = sorted(query_params.items())
 
     canonical_query_string = build_canonical_query_string(sorted_query_params)
 
@@ -91,7 +99,7 @@ def sign_url(
 
     signature: bytes = create_signature(message_to_sign, secret_key, algorithm)
     signature_b64 = base64url_encode(signature)
-    sorted_query_params["sig"] = [signature_b64]
+    sorted_query_params.append(("sig", [signature_b64]))
 
     return urlunparse(
         (

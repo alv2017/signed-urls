@@ -15,14 +15,6 @@ test_ttl = 300
 
 methods_to_test = request_methods
 
-# urls_to_test = [
-#     "http://example.com",
-#     "https://example.com/path/to/resource",
-#     "https://example.com/path?foo=bar&baz=qux",
-#     "https://example.com/path?foo=bar#section2",
-#     "https://example.com/path?foo=1&foo=2&foo=3&baz=qux",
-# ]
-
 non_encodable_extra_qp = [
     {"x": {"a": "1", "b": "2"}},
     {"x": {1, 2, 3}},

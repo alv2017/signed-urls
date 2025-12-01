@@ -1,5 +1,7 @@
 from signed_urls.utils import supported_algorithms
 
+secret_key = "Test-Secret-Key"
+
 request_methods = [
     "GET",
     "POST",

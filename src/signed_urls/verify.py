@@ -38,12 +38,15 @@ def verify_signed_url(
     """
     # Validate http method
     validate_type(value=method, expected_type=str, field_name="HTTP method")
+
     # Validate signed_url
     validate_type(value=signed_url, expected_type=str, field_name="Signed URL")
     if len(signed_url.strip()) == 0:
         raise ValueError("Signed URL cannot be empty")
+
     # Validate secret key
     validate_type(value=secret_key, expected_type=str, field_name="Secret key")
+
     # Validate algorithm
     validate_type(value=algorithm, expected_type=str, field_name="Algorithm")
     if algorithm not in supported_algorithms:
@@ -58,7 +61,7 @@ def verify_signed_url(
 
     # Signature must be present
     if not signature_b64:
-        return False
+        raise ValueError("Invalid signed url: missing 'sig' parameter")
 
     # Validate signature length (base64url-encoded HMAC signatures)
     if len(signature_b64) < 43 or len(signature_b64) > 86:
@@ -73,10 +76,14 @@ def verify_signed_url(
     except ValueError:
         return False
 
-    # Extract expiry timestamp
+    # expiry timestamp
     exp = query_params.get("exp", [None])[0]
     if not exp:
-        return False
+        raise ValueError("Invalid signed url: missing 'exp' parameter")
+
+    if not exp.isdigit():
+        raise ValueError("Invalid signed url: 'exp' must be a valid timestamp")
+
     if int(exp) < int(time.time()):
         return False
 
@@ -99,3 +106,41 @@ def verify_signed_url(
 
     # Compare the signature from the url with the expected signature
     return hmac.compare_digest(signature, expected_signature)
+
+
+if __name__ == "__main__":
+    from signed_urls.sign import sign_url
+
+    methods = [
+        "GET",
+        "POST",
+        "PUT",
+        "DELETE",
+        "PATCH",
+    ]
+
+    urls = [
+        "http://example.com",
+        "https://example.com/path/to/resource",
+        "https://example.com/path?foo=bar&baz=qux",
+        "https://example.com/path?foo=bar#section2",
+        "https://example.com/path?foo=1&foo=2&foo=3&baz=qux",
+    ]
+
+    signed_urls = [
+        (
+            sign_url(
+                method=method,
+                url=url,
+                secret_key="Test-Secret-Key",
+                ttl=300,
+                algorithm="SHA256",
+            ),
+            method,
+        )
+        for url in urls
+        for method in methods
+    ]
+
+    for su in signed_urls:
+        print(su)

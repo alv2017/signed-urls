@@ -10,7 +10,7 @@ from signed_urls.utils import (
     create_signature,
     supported_algorithms,
 )
-from signed_urls.validators import validate_type
+from signed_urls.validators import validate_extra_query_parameters, validate_type
 
 
 def sign_url(
@@ -69,22 +69,7 @@ def sign_url(
         validate_type(
             value=extra_qp, expected_type=dict, field_name="Extra query parameters"
         )
-
-        try:
-            urlencode(extra_qp, errors="strict")
-        except UnicodeEncodeError:
-            raise ValueError(
-                "The extra query parameters contain non-encodable values."
-            ) from None
-        except TypeError as e:
-            raise TypeError(
-                f"The extra query parameters contain non-string values: {repr(e)}"
-            ) from None
-
-        if "exp" in extra_qp or "sig" in extra_qp:
-            raise ValueError(
-                "Extra query parameters cannot contain reserved keys 'exp' or 'sig'."
-            )
+        validate_extra_query_parameters(extra_qp)
 
     expire_ts = int(time.time()) + ttl
     parsed = urlparse(url)

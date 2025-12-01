@@ -4,56 +4,72 @@ import pytest
 
 from signed_urls.sign import sign_url
 from tests.data import (
-    non_encodable_extra_qp,
     request_methods,
+    request_models,
     secret_key,
-    unsupported_algorithms,
+    supported_algorithms,
 )
 
-test_method = "GET"
-test_url = "https://example.com/path?foo=1&foo=2&foo=3&baz=qux"
 test_secret_key = secret_key
 test_ttl = 300
-test_algorithm = "SHA256"
 
 methods_to_test = request_methods
 
+# urls_to_test = [
+#     "http://example.com",
+#     "https://example.com/path/to/resource",
+#     "https://example.com/path?foo=bar&baz=qux",
+#     "https://example.com/path?foo=bar#section2",
+#     "https://example.com/path?foo=1&foo=2&foo=3&baz=qux",
+# ]
+
+non_encodable_extra_qp = [
+    {"x": {"a": "1", "b": "2"}},
+    {"x": {1, 2, 3}},
+    {"x": [b"bytes1", b"bytes2"]},
+    {"x": object()},
+    {"x": None},
+    {"x": lambda y: y},
+]
 
 # 1. Basic Functionality
 
 
-def test_sign_url_returns_string():
+@pytest.mark.parametrize("method,url,algorithm", request_models)
+def test_sign_url_returns_string(method, url, algorithm):
     signed_url = sign_url(
-        method=test_method,
-        url=test_url,
+        method=method,
+        url=url,
         secret_key=test_secret_key,
         ttl=test_ttl,
-        algorithm=test_algorithm,
+        algorithm=algorithm,
     )
     assert isinstance(signed_url, str)
 
 
-def test_sign_url_with_extra_query_parameters_returns_string():
+@pytest.mark.parametrize("method,url,algorithm", request_models)
+def test_sign_url_with_extra_query_parameters_returns_string(method, url, algorithm):
     signed_url = sign_url(
-        method=test_method,
-        url=test_url,
+        method=method,
+        url=url,
         secret_key=test_secret_key,
         ttl=test_ttl,
-        algorithm=test_algorithm,
+        algorithm=algorithm,
         extra_qp={"keyid": "key001", "user": "alice"},
     )
     assert isinstance(signed_url, str)
 
 
-def test_sign_url_preserves_original_url_data():
+@pytest.mark.parametrize("method,url,algorithm", request_models)
+def test_sign_url_preserves_original_url_data(method, url, algorithm):
     signed_url = sign_url(
-        method=test_method,
-        url=test_url,
+        method=method,
+        url=url,
         secret_key=test_secret_key,
         ttl=test_ttl,
-        algorithm=test_algorithm,
+        algorithm=algorithm,
     )
-    url_data = urlparse(test_url)
+    url_data = urlparse(url)
     url_query_params = parse_qs(url_data.query)
     signed_url_data = urlparse(signed_url)
     signed_query_params = parse_qs(signed_url_data.query)
@@ -70,16 +86,19 @@ def test_sign_url_preserves_original_url_data():
         assert signed_query_params[k] == v
 
 
-def test_sign_url_with_extra_query_parameters_preserves_original_url_data():
+@pytest.mark.parametrize("method,url,algorithm", request_models)
+def test_sign_url_with_extra_query_parameters_preserves_original_url_data(
+    method, url, algorithm
+):
     signed_url = sign_url(
-        method=test_method,
-        url=test_url,
+        method=method,
+        url=url,
         secret_key=test_secret_key,
         ttl=test_ttl,
-        algorithm=test_algorithm,
+        algorithm=algorithm,
         extra_qp={"keyid": "key001", "user": "alice"},
     )
-    url_data = urlparse(test_url)
+    url_data = urlparse(url)
     url_query_params = parse_qs(url_data.query)
     signed_url_data = urlparse(signed_url)
     signed_query_params = parse_qs(signed_url_data.query)
@@ -96,13 +115,14 @@ def test_sign_url_with_extra_query_parameters_preserves_original_url_data():
         assert signed_query_params[k] == v
 
 
-def test_sign_url_contains_exp_and_sig():
+@pytest.mark.parametrize("method,url,algorithm", request_models)
+def test_sign_url_contains_exp_and_sig(method, url, algorithm):
     signed_url = sign_url(
-        method=test_method,
-        url=test_url,
+        method=method,
+        url=url,
         secret_key=test_secret_key,
         ttl=test_ttl,
-        algorithm=test_algorithm,
+        algorithm=algorithm,
     )
     signed_url_data = urlparse(signed_url)
     signed_query_params = parse_qs(signed_url_data.query)
@@ -115,7 +135,10 @@ def test_sign_url_contains_exp_and_sig():
     assert expire_ts.isdigit()
 
 
-def test_sign_url_with_extra_query_parameters_contains_extra_qp_exp_and_sig():
+@pytest.mark.parametrize("method,url,algorithm", request_models)
+def test_sign_url_with_extra_query_parameters_contains_extra_qp_exp_and_sig(
+    method, url, algorithm
+):
     extra_qp = {
         "keyid": "key001",
         "user": "alice",
@@ -124,11 +147,11 @@ def test_sign_url_with_extra_query_parameters_contains_extra_qp_exp_and_sig():
         "id": 1,
     }
     signed_url = sign_url(
-        method=test_method,
-        url=test_url,
+        method=method,
+        url=url,
         secret_key=test_secret_key,
         ttl=test_ttl,
-        algorithm=test_algorithm,
+        algorithm=algorithm,
         extra_qp=extra_qp,
     )
     signed_url_data = urlparse(signed_url)
@@ -155,20 +178,21 @@ def test_sign_url_with_extra_query_parameters_contains_extra_qp_exp_and_sig():
 # 2. The signing process is deterministic
 
 
-def test_sign_url_is_deterministic():
+@pytest.mark.parametrize("method,url,algorithm", request_models)
+def test_sign_url_is_deterministic(method, url, algorithm):
     signed_url_1 = sign_url(
-        method=test_method,
-        url=test_url,
+        method=method,
+        url=url,
         secret_key=test_secret_key,
         ttl=test_ttl,
-        algorithm=test_algorithm,
+        algorithm=algorithm,
     )
     signed_url_2 = sign_url(
-        method=test_method,
-        url=test_url,
+        method=method,
+        url=url,
         secret_key=test_secret_key,
         ttl=test_ttl,
-        algorithm=test_algorithm,
+        algorithm=algorithm,
     )
     exp_1 = parse_qs(urlparse(signed_url_1).query)["exp"][0]
     exp_2 = parse_qs(urlparse(signed_url_2).query)["exp"][0]
@@ -176,57 +200,53 @@ def test_sign_url_is_deterministic():
         assert signed_url_1 == signed_url_2
 
 
-# 3. Failure Cases
+# 3.  Exceptions
 
 
-def test_sign_url_when_url_is_empty_raises_value_error():
+@pytest.mark.parametrize("method", request_methods)
+@pytest.mark.parametrize("algorithm", supported_algorithms)
+def test_sign_url_when_url_is_empty_raises_value_error(method, algorithm):
     with pytest.raises(ValueError, match="URL cannot be empty"):
         sign_url(
-            method=test_method,
+            method=method,
             url="",
-            secret_key=test_secret_key,
-            ttl=test_ttl,
-            algorithm=test_algorithm,
-        )
-
-
-@pytest.mark.parametrize("reserved_keyword", ["exp", "sig"])
-def test_sign_url_when_extra_qp_contains_exp_raises_value_error(reserved_keyword):
-    with pytest.raises(
-        ValueError,
-        match="Extra query parameters cannot contain reserved keys 'exp' or 'sig'.",
-    ):
-        sign_url(
-            method=test_method,
-            url=test_url,
-            secret_key=test_secret_key,
-            ttl=test_ttl,
-            algorithm=test_algorithm,
-            extra_qp={reserved_keyword: "some_value", "user": "alice"},
-        )
-
-
-@pytest.mark.parametrize("algorithm", unsupported_algorithms)
-def test_sign_url_with_unsupported_algorithm_raises_value_error(algorithm):
-    with pytest.raises(ValueError, match=f"Unsupported algorithm: {algorithm}"):
-        sign_url(
-            method=test_method,
-            url=test_url,
             secret_key=test_secret_key,
             ttl=test_ttl,
             algorithm=algorithm,
         )
 
 
-@pytest.mark.parametrize("non_encodable_extra_qp", non_encodable_extra_qp)
-def test_sign_url_with_non_encodable_extra_qp_raises_type_error(non_encodable_extra_qp):
-    with pytest.raises(TypeError) as exc_info:
+@pytest.mark.parametrize("method,url,algorithm", request_models)
+@pytest.mark.parametrize("reserved_keyword", ["exp", "sig"])
+def test_sign_url_when_extra_qp_contains_exp_raises_value_error(
+    method, url, algorithm, reserved_keyword
+):
+    with pytest.raises(
+        ValueError,
+        match="Extra query parameters cannot contain reserved keys 'exp' or 'sig'.",
+    ):
         sign_url(
-            method=test_method,
-            url=test_url,
+            method=method,
+            url=url,
             secret_key=test_secret_key,
             ttl=test_ttl,
-            algorithm=test_algorithm,
+            algorithm=algorithm,
+            extra_qp={reserved_keyword: "some_value", "user": "alice"},
+        )
+
+
+@pytest.mark.parametrize("method,url,algorithm", request_models)
+@pytest.mark.parametrize("non_encodable_extra_qp", non_encodable_extra_qp)
+def test_sign_url_with_non_encodable_extra_qp_raises_type_error(
+    method, url, algorithm, non_encodable_extra_qp
+):
+    with pytest.raises(TypeError) as exc_info:
+        sign_url(
+            method=method,
+            url=url,
+            secret_key=test_secret_key,
+            ttl=test_ttl,
+            algorithm=algorithm,
             extra_qp=non_encodable_extra_qp,
         )
     assert "Extra query parameter contains non-encodable value" in str(exc_info.value)

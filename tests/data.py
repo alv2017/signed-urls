@@ -14,6 +14,15 @@ algorithms = supported_algorithms
 
 unsupported_algorithms = ["MD5", "SHA1", "SHA224", "SHA3_256", "SM3"]
 
+non_encodable_extra_qp = [
+    {"x": {"a": "1", "b": "2"}},
+    {"x": {1, 2, 3}},
+    {"x": [b"bytes1", b"bytes2"]},
+    {"x": object()},
+    {"x": None},
+    {"x": lambda y: y},
+]
+
 test_urls = [
     # Simple HTTP URL, no query
     "http://example.com",

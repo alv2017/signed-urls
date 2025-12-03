@@ -18,26 +18,21 @@ from signed_urls.validators import (
 
 
 def verify_signed_url(
-    method: str,
-    signed_url: str,
-    secret_key: str,
-    algorithm="SHA256",
-    sign_format="base64",
+    method: str, signed_url: str, secret_key: str, algorithm: str, sign_format: str
 ) -> bool:
     """
     Verify a signed URL.
 
     Note:
-    This function does NOT perform semantic URL validation.
-    Any non-empty string that can be parsed by urllib.parse.urlparse
-    will be verified. URL correctness is the caller's responsibility.
+    This function performs a basic validation of the url.
+    URL correctness is the caller's responsibility.
 
     Args:
         method (str): HTTP method used to sign the request (e.g., 'GET').
         signed_url (str): The full URL containing the signature query parameter 'sig'.
         secret_key (str): Secret key used to create the HMAC signature.
-        algorithm (str): Hash algorithm name passed to the signing helper
-                         (default: 'SHA256').
+        algorithm (str): Hash algorithm name passed to the signing helper. Choose from
+            supported algorithms.
         sign_format (str): Signature encoding format, either 'base64' or 'hex'
 
     Returns:

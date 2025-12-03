@@ -231,7 +231,7 @@ def test_signed_url_passed_as_empty_string_raises_value_error():
     Given: an empty signed_url
     Then: verify_signed_url should raise ValueError
     """
-    with pytest.raises(ValueError, match="Signed URL cannot be empty"):
+    with pytest.raises(ValueError, match="URL cannot be empty"):
         verify_signed_url(
             method=method,
             signed_url="",

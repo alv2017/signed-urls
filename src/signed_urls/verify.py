@@ -1,21 +1,28 @@
 import hmac
-import re
 import time
-from urllib.parse import parse_qs, urlencode, urlparse
+from urllib.parse import parse_qs, urlparse
 
 from signed_urls.utils import (
-    base64url_decode,
+    build_canonical_query_string,
     build_canonical_string,
-    create_signature,
+    create_url_signature,
     supported_algorithms,
+    supported_sign_formats,
 )
-from signed_urls.validators import validate_type
-
-BASE64URL_REGEX = re.compile(r"^[A-Za-z0-9_-]+$")
+from signed_urls.validators import (
+    validate_algorithm,
+    validate_sign_format,
+    validate_type,
+    validate_url,
+)
 
 
 def verify_signed_url(
-    method: str, signed_url: str, secret_key: str, algorithm="SHA256"
+    method: str,
+    signed_url: str,
+    secret_key: str,
+    algorithm="SHA256",
+    sign_format="base64",
 ) -> bool:
     """
     Verify a signed URL.
@@ -31,6 +38,7 @@ def verify_signed_url(
         secret_key (str): Secret key used to create the HMAC signature.
         algorithm (str): Hash algorithm name passed to the signing helper
                          (default: 'SHA256').
+        sign_format (str): Signature encoding format, either 'base64' or 'hex'
 
     Returns:
         bool: True if the signature in the URL matches the expected signature computed
@@ -40,41 +48,29 @@ def verify_signed_url(
     validate_type(value=method, expected_type=str, field_name="HTTP method")
 
     # Validate signed_url
-    validate_type(value=signed_url, expected_type=str, field_name="Signed URL")
-    if len(signed_url.strip()) == 0:
-        raise ValueError("Signed URL cannot be empty")
+    validate_url(url=signed_url)
 
     # Validate secret key
     validate_type(value=secret_key, expected_type=str, field_name="Secret key")
 
     # Validate algorithm
-    validate_type(value=algorithm, expected_type=str, field_name="Algorithm")
-    if algorithm not in supported_algorithms:
-        raise ValueError(f"Unsupported algorithm: {algorithm}")
+    validate_algorithm(algorithm=algorithm, supported_algorithms=supported_algorithms)
+
+    # Validate sign_format
+    validate_sign_format(
+        sign_format=sign_format, supported_formats=supported_sign_formats
+    )
 
     # Parse the signed URL
     parsed = urlparse(signed_url)
     query_params = parse_qs(parsed.query)
 
     # Extract the signature from the query parameters
-    signature_b64 = query_params.pop("sig", [None])[0]
+    signature: str = query_params.pop("sig", [None])[0]
 
     # Signature must be present
-    if not signature_b64:
+    if not signature:
         raise ValueError("Invalid signed url: missing 'sig' parameter")
-
-    # Validate signature length (base64url-encoded HMAC signatures)
-    if len(signature_b64) < 43 or len(signature_b64) > 86:
-        return False
-
-    # Validate the signature format
-    if not BASE64URL_REGEX.match(signature_b64):
-        return False
-
-    try:
-        signature: bytes = base64url_decode(signature_b64)
-    except ValueError:
-        return False
 
     # expiry timestamp
     exp = query_params.get("exp", [None])[0]
@@ -88,59 +84,22 @@ def verify_signed_url(
         return False
 
     # Reconstruct the message to sign
-    unsigned_query = urlencode(query_params, doseq=True)
+    unsigned_query = build_canonical_query_string(query_params)
+
     message_to_sign = build_canonical_string(
-        method,
-        parsed.scheme,
-        parsed.netloc,
-        parsed.path,
-        parsed.params,
-        unsigned_query,
-        parsed.fragment,
+        method=method,
+        scheme=parsed.scheme,
+        netloc=parsed.netloc,
+        path=parsed.path,
+        params=parsed.params,
+        query=unsigned_query,
+        fragment=parsed.fragment,
     )
 
     # Generate an expected signature using the secret key
-    expected_signature = create_signature(
-        message_to_sign, secret_key, algorithm=algorithm
+    expected_signature = create_url_signature(
+        message_to_sign, secret_key, algorithm=algorithm, sign_format=sign_format
     )
 
     # Compare the signature from the url with the expected signature
     return hmac.compare_digest(signature, expected_signature)
-
-
-if __name__ == "__main__":
-    from signed_urls.sign import sign_url
-
-    methods = [
-        "GET",
-        "POST",
-        "PUT",
-        "DELETE",
-        "PATCH",
-    ]
-
-    urls = [
-        "http://example.com",
-        "https://example.com/path/to/resource",
-        "https://example.com/path?foo=bar&baz=qux",
-        "https://example.com/path?foo=bar#section2",
-        "https://example.com/path?foo=1&foo=2&foo=3&baz=qux",
-    ]
-
-    signed_urls = [
-        (
-            sign_url(
-                method=method,
-                url=url,
-                secret_key="Test-Secret-Key",
-                ttl=300,
-                algorithm="SHA256",
-            ),
-            method,
-        )
-        for url in urls
-        for method in methods
-    ]
-
-    for su in signed_urls:
-        print(su)

@@ -1,16 +1,22 @@
 import time
-from urllib.parse import parse_qs, urlencode, urlparse, urlunparse
+from urllib.parse import parse_qs, urlparse, urlunparse
 
 from signed_urls.utils import (
     QueryDict,
     QueryList,
-    base64url_encode,
     build_canonical_query_string,
     build_canonical_string,
-    create_signature,
+    create_url_signature,
     supported_algorithms,
+    supported_sign_formats,
 )
-from signed_urls.validators import validate_extra_query_parameters, validate_type
+from signed_urls.validators import (
+    validate_algorithm,
+    validate_extra_query_parameters,
+    validate_sign_format,
+    validate_type,
+    validate_url,
+)
 
 
 def sign_url(
@@ -20,6 +26,7 @@ def sign_url(
     ttl: int,
     algorithm: str = "SHA256",
     extra_qp: QueryDict | None = None,
+    sign_format: str = "base64",
 ) -> str:
     """
     Sign a URL by adding an expiration timestamp and a signature.
@@ -38,9 +45,11 @@ def sign_url(
         url (str): The URL to sign.
         secret_key (str): Secret key used to create the signature.
         ttl (int): Time-to-live in seconds; expiration is current time + ttl.
+            It can be positive or negative integer.
         extra_qp (dict | None): Additional query parameters to include in the
             signature and final URL.
         algorithm (str): Hash algorithm used for the signature (default: \'SHA256\').
+        sign_format (str): Signature encoding format, either 'base64' or 'hex'
 
     Returns:
         str: The signed URL containing `exp` and `sig` query parameters.
@@ -49,9 +58,7 @@ def sign_url(
     validate_type(value=method, expected_type=str, field_name="HTTP method")
 
     # Validate url
-    validate_type(value=url, expected_type=str, field_name="URL")
-    if len(url.strip()) == 0:
-        raise ValueError("URL cannot be empty")
+    validate_url(url)
 
     # Validate secret key
     validate_type(value=secret_key, expected_type=str, field_name="Secret key")
@@ -60,15 +67,15 @@ def sign_url(
     validate_type(value=ttl, expected_type=int, field_name="TTL")
 
     # Validate algorithm
-    validate_type(value=algorithm, expected_type=str, field_name="Algorithm")
-    if algorithm not in supported_algorithms:
-        raise ValueError(f"Unsupported algorithm: {algorithm}")
+    validate_algorithm(algorithm=algorithm, supported_algorithms=supported_algorithms)
+
+    # Validate sign_format
+    validate_sign_format(
+        sign_format=sign_format, supported_formats=supported_sign_formats
+    )
 
     # Validate extra_qp: extra query parameters
     if extra_qp is not None:
-        validate_type(
-            value=extra_qp, expected_type=dict, field_name="Extra query parameters"
-        )
         validate_extra_query_parameters(extra_qp)
 
     expire_ts = int(time.time()) + ttl
@@ -83,27 +90,32 @@ def sign_url(
 
     canonical_query_string = build_canonical_query_string(sorted_query_params)
 
-    scheme = parsed.scheme
-    netloc = parsed.netloc
-    path = parsed.path
-    params = parsed.params
-    fragment = parsed.fragment
-
     message_to_sign = build_canonical_string(
-        method, scheme, netloc, path, params, canonical_query_string, fragment
+        method=method,
+        scheme=parsed.scheme,
+        netloc=parsed.netloc,
+        path=parsed.path,
+        params=parsed.params,
+        query=canonical_query_string,
+        fragment=parsed.fragment,
     )
 
-    signature: bytes = create_signature(message_to_sign, secret_key, algorithm)
-    signature_b64 = base64url_encode(signature)
-    sorted_query_params.append(("sig", [signature_b64]))
+    signature: str = create_url_signature(
+        message=message_to_sign,
+        secret_key=secret_key,
+        algorithm=algorithm,
+        sign_format=sign_format,
+    )
+
+    sorted_query_params.append(("sig", [signature]))
 
     return urlunparse(
         (
-            scheme,
-            netloc,
-            path,
-            params,
-            urlencode(sorted_query_params, doseq=True),
-            fragment,
+            parsed.scheme,
+            parsed.netloc,
+            parsed.path,
+            parsed.params,
+            build_canonical_query_string(sorted_query_params),
+            parsed.fragment,
         )
     )

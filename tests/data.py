@@ -2,6 +2,8 @@ from signed_urls.utils import supported_algorithms
 
 secret_key = "Test-Secret-Key"
 
+FIXED_TIME = 1700000000
+
 request_methods = [
     "GET",
     "POST",

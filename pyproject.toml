@@ -1,9 +1,23 @@
+[build-system]
+requires = ["setuptools>=80.9.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
 [project]
 name = "signed-urls"
 version = "0.1.0"
-description = "Add your description here"
+description = "Sign and verify URLs using HMAC for secure temporary access."
 readme = "README.md"
+authors = [{name = "Vitalija Alisauskaite", email = "v.alishauskaite@gmail.com"}]
+license = {file = "LICENCSE"}
+classifiers = [
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python",
+    "Programming Language :: Python :: 3",
+]
+urls = {"Homepage" = "https://github.com/alv2017/signed-urls"}
+keywords = ["signed-urls", "hmac", "url-signing", "url-verification", "temporary-access"]
 requires-python = ">=3.12,<3.15"
+
 dependencies = []
 
 [dependency-groups]
@@ -16,7 +30,6 @@ dev = [
 [tool.ruff]
 line-length = 88
 target-version = "py312"
-exclude = ["alembic"]
 
 [tool.ruff.lint]
 select = [

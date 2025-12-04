@@ -7,9 +7,10 @@
         <!-- Last commit -->
         <img src="https://img.shields.io/github/last-commit/alv2017/signed-urls" alt="Latest Commit">
         <!-- GitHub Actions tests status -->
-        <img src="https://img.shields.io/github/actions/workflow/status/alv2017/signed-urls/run_tests.yml?branch=main&label=tests" alt="Tests Status">
+        <img src="https://img.shields.io/github/actions/workflow/status/alv2017/signed-urls/code-quality-check.yaml?branch=main&label=tests" alt="Tests Status">
         <!-- Codecov coverage -->
-        <img src="https://img.shields.io/codecov/c/github/alv2017/signed-urls" alt="Code Coverage">
+        <img src="https://img.shields.io/codecov/c/github/alv2017/signed-urls/main
+" alt="Code Coverage">
     </a>
     <br/>
     <a href="https://pypi.org/project/signed-urls" target="_blank">
